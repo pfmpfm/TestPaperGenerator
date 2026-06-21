@@ -10,6 +10,7 @@
 ## ✨ 核心特性
 
 - 🤖 **多 Agent 协作**: 基于 AutoGen 实现 3-Agent 群聊质量审核
+- 🤖 LangChain排版的单agent生成和基于LangGraph排布的工作流
 - 🧠 **双知识库 RAG**: 历史题库去重 + 教材知识库增强生成
 - 📊 **完整可观测性**: LangSmith 追踪 + Prometheus 监控 + Grafana 面板
 - 🎨 **丰富题型**: 支持数学公式（LaTeX）、配图（几何/统计图）、表格
