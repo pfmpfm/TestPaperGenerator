@@ -1,0 +1,244 @@
+services:
+  # ==================== 反向代理层 ====================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: exam-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - backend-static:/usr/share/nginx/html/static:ro
+      - ./frontend/dist:/usr/share/nginx/html/frontend:ro
+    depends_on:
+      - backend
+    networks:
+      - exam-network
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==================== 业务应用层 ====================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    # container_name: exam-backend-1  # 使用 replicas 时不能设置 container_name
+    env_file:
+      - ./backend/.env
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=root_password_change_me
+      - MYSQL_DATABASE=exam_generator
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=redis_password_change_me
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_API_KEY=
+      - WORKERS=2
+    volumes:
+      - backend-static:/app/static
+      - backend-logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    networks:
+      - exam-network
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # ==================== 数据存储层 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: exam-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password_change_me
+      - MYSQL_DATABASE=exam_generator
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+      - TZ=Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./mysql/conf.d:/etc/mysql/conf.d:ro
+      - ./mysql/backup:/backup
+    ports:
+      - "3306:3306"
+    networks:
+      - exam-network
+    restart: "no"
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password_change_me"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: exam-redis
+    command: >
+      redis-server
+      --requirepass redis_password_change_me
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - exam-network
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    container_name: exam-qdrant
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    networks:
+      - exam-network
+    restart: "no"
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+
+  # ==================== 监控观测层 ====================
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: exam-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - exam-network
+    restart: "no"
+    depends_on:
+      - backend
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.52.0
+    container_name: exam-redis-exporter
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=redis_password_change_me
+    ports:
+      - "9121:9121"
+    networks:
+      - exam-network
+    restart: "no"
+    depends_on:
+      - redis
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.15.0
+    container_name: exam-mysql-exporter
+    environment:
+      - DATA_SOURCE_NAME=root:root_password_change_me@(mysql:3306)/exam_generator
+    ports:
+      - "9104:9104"
+    networks:
+      - exam-network
+    restart: "no"
+    depends_on:
+      - mysql
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: exam-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - exam-network
+    restart: "no"
+    depends_on:
+      - prometheus
+
+  # ==================== 备份服务 ====================
+  backup:
+    image: mysql:8.0
+    container_name: exam-backup
+    volumes:
+      - ./mysql/backup:/backup
+      - ./backup/scripts:/scripts:ro
+    networks:
+      - exam-network
+    entrypoint: /scripts/backup.sh
+    restart: "no"
+    depends_on:
+      - mysql
+
+networks:
+  exam-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  qdrant-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  backend-static:
+    driver: local
+  backend-logs:
+    driver: local

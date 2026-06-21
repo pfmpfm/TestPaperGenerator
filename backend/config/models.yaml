@@ -1,0 +1,153 @@
+# LLM模型配置
+llm:
+  # 当前使用的提供商 (deepseek/zhipu/kimi/qwen)
+  provider: "${LLM_PROVIDER}"
+
+  # DeepSeek配置
+  deepseek:
+    base_url: "${DEEPSEEK_BASE_URL}"
+    api_key: "${DEEPSEEK_API_KEY}"
+    models:
+      high_quality: "${DEEPSEEK_HIGH_QUALITY_MODEL}"
+      cost_efficient: "${DEEPSEEK_COST_EFFICIENT_MODEL}"
+    max_tokens: 4096
+    temperature: 0.7
+
+  # 智谱AI配置
+  zhipu:
+    base_url: "${ZHIPU_BASE_URL}"
+    api_key: "${ZHIPU_API_KEY}"
+    models:
+      high_quality: "${ZHIPU_HIGH_QUALITY_MODEL}"
+      cost_efficient: "${ZHIPU_COST_EFFICIENT_MODEL}"
+    max_tokens: 4096
+    temperature: 0.7
+
+  # Kimi配置
+  kimi:
+    base_url: "${KIMI_BASE_URL}"
+    api_key: "${KIMI_API_KEY}"
+    models:
+      high_quality: "${KIMI_HIGH_QUALITY_MODEL}"
+      cost_efficient: "${KIMI_COST_EFFICIENT_MODEL}"
+    max_tokens: 4096
+    temperature: 0.7
+
+  # 通义千问配置
+  qwen:
+    base_url: "${QWEN_BASE_URL}"
+    api_key: "${QWEN_API_KEY}"
+    models:
+      high_quality: "${LLM_HIGH_QUALITY_MODEL}"
+      cost_efficient: "${LLM_COST_EFFICIENT_MODEL}"
+    max_tokens: 4096
+    temperature: 0.7
+
+# Embedding模型配置
+embedding:
+  # 当前使用的提供商 (zhipu/qwen/baichuan/local)
+  provider: "${EMBEDDING_PROVIDER}"
+
+  # 智谱AI Embedding
+  zhipu:
+    base_url: "${ZHIPU_BASE_URL}"
+    api_key: "${ZHIPU_API_KEY}"
+    model: "${ZHIPU_EMBEDDING_MODEL}"
+    dimension: "${ZHIPU_EMBEDDING_DIMENSION}"
+
+  # 通义千问 Embedding
+  qwen:
+    base_url: "${QWEN_BASE_URL}"
+    api_key: "${QWEN_API_KEY}"
+    model: "${EMBEDDING_MODEL}"
+    dimension: "${EMBEDDING_DIMENSION}"
+
+  # 百川 Embedding
+  baichuan:
+    base_url: "${BAICHUAN_BASE_URL}"
+    api_key: "${BAICHUAN_API_KEY}"
+    model: "${BAICHUAN_EMBEDDING_MODEL}"
+    dimension: "${BAICHUAN_EMBEDDING_DIMENSION}"
+
+  # 本地部署 (bge-large-zh-v1.5)
+  local:
+    model_path: "${LOCAL_EMBEDDING_MODEL_PATH}"
+    dimension: "${LOCAL_EMBEDDING_DIMENSION}"
+    device: "${LOCAL_EMBEDDING_DEVICE}"
+
+# Agent配置
+agents:
+  # 知识提取Agent
+  knowledge_extraction:
+    llm_type: high_quality
+    max_retries: 3
+    timeout: 60
+
+  # 题目生成Agent
+  question_generator:
+    llm_type: cost_efficient
+    max_retries: 3
+    timeout: 45
+    parallel_tasks: 3
+
+  # 难度评估Agent
+  difficulty_evaluator:
+    llm_type: cost_efficient
+    max_retries: 2
+    timeout: 30
+
+  # AutoGen质量审核小组
+  quality_review_group:
+    llm_type: high_quality
+    max_rounds: 6
+    timeout: 90
+
+# Workflow配置
+workflow:
+  max_retry_count: 2
+  total_timeout: 300
+  enable_checkpoints: true
+
+# 向量数据库配置
+vector_db:
+  collections:
+    textbook_knowledge:
+      dimension: 2048  # 根据embedding模型自动设置
+      distance: cosine
+      on_disk_payload: true
+
+    question_bank:
+      dimension: 2048
+      distance: cosine
+      on_disk_payload: true
+
+    session_questions:
+      dimension: 2048
+      distance: cosine
+      ttl: 3600  # 1小时自动清理
+
+# RAG配置
+rag:
+  chunk_size: 512
+  chunk_overlap: 50
+  top_k: 5
+  similarity_threshold: 0.7
+  enable_rerank: true
+  rerank_top_n: 3
+
+# 题目生成配置
+question_generation:
+  # 去重相似度阈值
+  deduplication_threshold: 0.90
+  # 每个知识点生成题目数量
+  questions_per_knowledge_point: 3
+  # 最大生成题目总数
+  max_total_questions: 50
+
+# 配图生成配置
+figure_generation:
+  dpi: 150
+  figsize: [6, 6]
+  font_family: "SimHei"
+  save_format: "png"
+  quality: 95
