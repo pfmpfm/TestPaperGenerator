@@ -68,11 +68,9 @@ data/redis/
 data/qdrant/
 data/uploads/
 
-# Generated files
-*.pdf
-*.docx
-*.png
-*.jpg
+# 但允许 assets 目录的图片文件
+!assets/*.png
+!assets/*.jpg
 
 # Node
 node_modules/
